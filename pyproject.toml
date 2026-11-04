@@ -24,5 +24,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [dependency-groups]
 dev = [
+    "aqt[qt6]>=26.9.4",
+    "mypy>=2.4.1",
     "ruff>=0.17.3",
 ]
