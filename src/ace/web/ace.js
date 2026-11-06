@@ -16,10 +16,13 @@ const ACE = {
     // Add the substitute element as soon as the original one is added to the page
      void waitForElement('.note-editor .fields > :first-child .collapsible')
          .then((el) => {
-             const sibling = document.createElement('span');
-             sibling.id = this._FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_ID;
-             sibling.textContent = 'test sibling';
-             el.after(sibling);
+             new window.CodeMirror.EditorView({
+               parent: el.parentElement,
+               extensions: [
+                 window.CodeMirror.basicSetup,
+                 window.CodeMirror.EditorView.editorAttributes.of({ id: this._FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_ID })
+               ]
+             });
          });
 
   },

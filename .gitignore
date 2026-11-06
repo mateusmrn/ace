@@ -6,3 +6,7 @@ __pycache__/
 dist/
 build/
 .env
+
+node_modules/
+.mypy_cache/
+/src/ace/web/codemirror.js

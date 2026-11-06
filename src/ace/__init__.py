@@ -13,6 +13,7 @@ def on_webview_will_set_content(web_content: WebContent, context: object | None)
     if not isinstance(context, Editor):
         return
     ace_addon_name = mw.addonManager.addon_from_module(__name__)
+    web_content.js.append(f"/_addons/{ace_addon_name}/web/codemirror.js")
     web_content.js.append(f"/_addons/{ace_addon_name}/web/ace.js")
 
 def on_editor_will_load_note(js_args: str, note: Note, _: Editor):
