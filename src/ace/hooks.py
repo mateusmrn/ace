@@ -59,7 +59,10 @@ def inject_extension_js_into_editor_webview(web_content: WebContent, context: ob
 def override_code_field_ui_component(js_args: str, note: Note, _: Editor):
     note_type = cast(NotetypeDict | None, note.note_type())
     if note_type is not None and note_type["name"] == code_note_type_name:
-        js_args += "\nwindow.__ACE__.onCodeNoteTypeLoad();\n"
+        reference_code_field = next(
+            field for field in note_type["flds"] if field["name"] == "Reference Code"
+        )
+        js_args += f"\nwindow.__ACE__.onCodeNoteTypeLoad({reference_code_field['ord']});\n"
     else:
         js_args += "\nwindow.__ACE__.onCodeNoteTypeUnload();\n"
     return js_args
