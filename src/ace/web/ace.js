@@ -1,44 +1,73 @@
-const ACE = {
-  _FIELD_OVERRIDE_STYLE_BLOCK_ID: "ace-code-field-override-css",
-  _FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_ID: "ace-code-field-override-substitute",
+class AceExtension {
+  static #FIELD_OVERRIDE_STYLE_BLOCK_ID = "ace-code-field-override-css";
+  static #FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS =
+    "ace-code-field-override-substitute";
 
-  onCodeNoteTypeLoad(referenceCodeFieldIndex) {
+  /**
+   * @typedef {object} FieldOverrideConfig
+   *  @property {number} index - The index of the position of the field in the form
+   */
+
+  /**
+   * @param {FieldOverrideConfig[]} fieldsOverrideConfig
+   */
+  onCodeNoteTypeLoad(fieldsOverrideConfig) {
+    const fieldsCssSelectors = fieldsOverrideConfig.map(
+      (config) =>
+        `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
+    );
+    this.#hideOverriddenFieldsDefaultUiElements(fieldsCssSelectors);
+    this.addOverridenFieldsSubstituteUiElements(fieldsCssSelectors);
+  }
+
+  /**
+   * @param {string[]} fieldsCssSelectors
+   */
+  #hideOverriddenFieldsDefaultUiElements(fieldsCssSelectors) {
     const style = document.createElement("style");
-    style.id = this._FIELD_OVERRIDE_STYLE_BLOCK_ID;
-    const originalFieldElementSelector = `.note-editor .fields > :nth-child(${referenceCodeFieldIndex + 1}) .collapsible`;
+    style.id = AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID;
     style.textContent = `
-       ${originalFieldElementSelector} {
+      ${fieldsCssSelectors.join(",")} {
          display: none !important;
        }
      `;
+    console.log(style.textContent);
     document.head.append(style);
-    void waitForElement(originalFieldElementSelector).then((el) => {
-      new window.CodeMirror.EditorView({
-        parent: el.parentElement,
-        extensions: [
-          window.CodeMirror.basicSetup,
-          window.CodeMirror.EditorView.editorAttributes.of({
-            id: this._FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_ID,
-          }),
-        ],
+  }
+
+  /**
+   * @param {string[]} fieldsCssSelectors
+   */
+  addOverridenFieldsSubstituteUiElements(fieldsCssSelectors) {
+    fieldsCssSelectors.forEach((selector) => {
+      void waitForElement(selector).then((el) => {
+        new window.CodeMirror.EditorView({
+          parent: el.parentElement,
+          extensions: [
+            window.CodeMirror.basicSetup,
+            window.CodeMirror.EditorView.editorAttributes.of({
+              class: AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
+            }),
+          ],
+        });
       });
     });
-  },
+  }
 
   onCodeNoteTypeUnload() {
     const styleBlock = document.getElementById(
-      this._FIELD_OVERRIDE_STYLE_BLOCK_ID,
+      AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID,
     );
     styleBlock?.remove();
 
-    const substituteEl = document.getElementById(
-      this._FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_ID,
+    const substituteElements = document.getElementsByClassName(
+      AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
     );
-    substituteEl?.remove();
-  },
-};
+    Array.from(substituteElements).forEach((el) => el.remove());
+  }
+}
 
-window.__ACE__ = ACE;
+window.__ACE__ = new AceExtension();
 
 function waitForElement(selector) {
   return new Promise((resolve) => {

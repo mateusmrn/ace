@@ -27,6 +27,7 @@ def init_code_note_type(collection: Collection):
 
         model_manager.add_field(raw_code_note_type, model_manager.new_field("Problem Statement"))
         model_manager.add_field(raw_code_note_type, model_manager.new_field("Reference Code"))
+        model_manager.add_field(raw_code_note_type, model_manager.new_field("Executor Script"))
 
         note_type_template = model_manager.new_template("Card 1")
         note_type_template["qfmt"] = "{{Problem Statement}}"
@@ -62,7 +63,10 @@ def override_code_field_ui_component(js_args: str, note: Note, _: Editor):
         reference_code_field = next(
             field for field in note_type["flds"] if field["name"] == "Reference Code"
         )
-        js_args += f"\nwindow.__ACE__.onCodeNoteTypeLoad({reference_code_field['ord']});\n"
+        executor_script_field = next(
+            field for field in note_type["flds"] if field["name"] == "Executor Script"
+        )
+        js_args += f"\nwindow.__ACE__.onCodeNoteTypeLoad([{{ index: {reference_code_field['ord']} }}, {{ index: {executor_script_field['ord']}}}]);\n"
     else:
         js_args += "\nwindow.__ACE__.onCodeNoteTypeUnload();\n"
     return js_args
