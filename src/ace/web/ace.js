@@ -5,7 +5,8 @@ class AceExtension {
 
   /**
    * @typedef {object} FieldOverrideConfig
-   *  @property {number} index - The index of the position of the field in the form
+   *  @property {number} index The index of the position of the field in the form
+   *  @property {string | undefined} language The language of the substitute CodeMirror element
    */
 
   /**
@@ -16,8 +17,19 @@ class AceExtension {
       (config) =>
         `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
     );
+
+    // The `override_code_field_ui_component` handler defined in hooks.py
+    // gets called after adding an ACE Code note, so without this check we'd end up
+    // with an extra substitute element on the fields.
+    const substituteElementsAlreadyPresent =
+      document.querySelector(
+        "." + AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
+      ) !== null;
+    if (substituteElementsAlreadyPresent) {
+      return;
+    }
     this.#hideOverriddenFieldsDefaultUiElements(fieldsCssSelectors);
-    this.addOverridenFieldsSubstituteUiElements(fieldsCssSelectors);
+    this.#addOverridenFieldsSubstituteUiElements(fieldsCssSelectors);
   }
 
   /**
@@ -31,14 +43,13 @@ class AceExtension {
          display: none !important;
        }
      `;
-    console.log(style.textContent);
     document.head.append(style);
   }
 
   /**
    * @param {string[]} fieldsCssSelectors
    */
-  addOverridenFieldsSubstituteUiElements(fieldsCssSelectors) {
+  #addOverridenFieldsSubstituteUiElements(fieldsCssSelectors) {
     fieldsCssSelectors.forEach((selector) => {
       void waitForElement(selector).then((el) => {
         new window.CodeMirror.EditorView({

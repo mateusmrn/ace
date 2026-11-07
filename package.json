@@ -7,6 +7,7 @@
     "watch": "esbuild web/src/codemirror.js --bundle --outfile=src/ace/web/codemirror.js --watch"
   },
   "dependencies": {
+    "@codemirror/legacy-modes": "^6.5.5",
     "codemirror": "^6.0.1"
   },
   "devDependencies": {

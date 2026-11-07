@@ -66,7 +66,12 @@ def override_code_field_ui_component(js_args: str, note: Note, _: Editor):
         executor_script_field = next(
             field for field in note_type["flds"] if field["name"] == "Executor Script"
         )
-        js_args += f"\nwindow.__ACE__.onCodeNoteTypeLoad([{{ index: {reference_code_field['ord']} }}, {{ index: {executor_script_field['ord']}}}]);\n"
+        js_args += (
+            "\nwindow.__ACE__.onCodeNoteTypeLoad([\n"
+            f"  {{ index: {reference_code_field['ord']} }},\n"
+            f"  {{ index: {executor_script_field['ord']} }}\n"
+            "]);\n"
+        )
     else:
         js_args += "\nwindow.__ACE__.onCodeNoteTypeUnload();\n"
     return js_args
