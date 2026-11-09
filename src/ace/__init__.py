@@ -1,5 +1,9 @@
 from aqt import mw
-from aqt.gui_hooks import collection_did_load, editor_will_load_note, webview_will_set_content
+from aqt.gui_hooks import (
+    collection_did_load,
+    editor_will_load_note,
+    webview_will_set_content,
+)
 
 from ace.hooks import (
     init_code_note_type,

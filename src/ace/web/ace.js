@@ -10,56 +10,136 @@ class AceExtension {
    */
 
   /**
+   * @template T
+   * @typedef {object} Readable
+   * @property {(run: (value: T) => void) => (() => void)} subscribe
+   */
+
+  /**
+   * @template T
+   * @typedef {object} Writable
+   * @property {(value: T) => void} set
+   * @property {(updater: (value: T) => T) => void} update
+   * @property {(run: (value: T) => void) => (() => void)} subscribe
+   */
+
+  /**
+   * @typedef {object} FocusableInputAPI
+   * @property {string} name
+   * @property {boolean} focusable
+   * @property {() => void} focus
+   * @property {() => void} refocus
+   */
+
+  /**
+   * @typedef {object} EditingInputAPI
+   * @property {(target: EventTarget) => Promise<FocusableInputAPI | null>} getInputAPI
+   */
+
+  /**
+   * @typedef {object} EditingAreaAPI
+   * @property {Writable<string>} content Field's text content
+   * @property {Writable<EditingInputAPI[]>} editingInputs
+   * @property {() => void} focus
+   * @property {() => void} refocus
+   */
+
+  /**
+   * @typedef {object} EditorFieldAPI
+   * @property {Promise<HTMLElement>} element
+   * @property {Readable<"ltr" | "rtl">} direction
+   * @property {EditingAreaAPI} editingArea
+   */
+
+  /**
+   * @typedef {object} RemoveFormat
+   * @property {string} name
+   * @property {string} key
+   * @property {boolean} show
+   * @property {boolean} active
+   */
+
+  /**
+   * @typedef {object} EditorToolbarAPI
+   * @property {object} toolbar Slot of toolbar buttons (not typed further -- unused here)
+   * @property {object} notetypeButtons Slot of notetype-specific buttons (not typed further -- unused here)
+   * @property {object} inlineButtons Slot of inline-formatting buttons (not typed further -- unused here)
+   * @property {object} blockButtons Slot of block-formatting buttons (not typed further -- unused here)
+   * @property {object} templateButtons Slot of template buttons (not typed further -- unused here)
+   * @property {Writable<RemoveFormat[]>} removeFormats
+   */
+
+  /**
+   * @typedef {-1 | 0 | 1 | 2 | 3} EditorState
+   * Initial = -1, Fields = 0, ImageOcclusionPicker = 1, ImageOcclusionMasks = 2, ImageOcclusionFields = 3
+   */
+
+  /**
+   * @typedef {object} NoteEditorAPI
+   * @property {EditorFieldAPI[]} fields
+   * @property {Writable<EditorFieldAPI | null>} hoveredField
+   * @property {Writable<EditorFieldAPI | null>} focusedField
+   * @property {Writable<EditingInputAPI | null>} focusedInput
+   * @property {EditorToolbarAPI} toolbar
+   * @property {Writable<EditorState>} state
+   * @property {Writable<string | null>} lastIOImagePath
+   * @property {() => Promise<void>} saveNow
+   * @property {boolean} isLegacy
+   */
+
+  /**
    * @param {FieldOverrideConfig[]} fieldsOverrideConfig
    */
   onCodeNoteTypeLoad(fieldsOverrideConfig) {
-    const fieldsCssSelectors = fieldsOverrideConfig.map(
-      (config) =>
-        `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
-    );
+    /** @type {Promise<NoteEditorAPI>} */
+    const noteEditor = new Promise((res) => {
+      const ankiNoteEditor = require("anki/NoteEditor");
+      if (ankiNoteEditor.instances.length > 0) {
+        return res(ankiNoteEditor.instances[0]);
+      } else {
+        ankiNoteEditor.lifecycle.onMount((api) => res(api));
+      }
+    });
 
-    // The `override_code_field_ui_component` handler defined in hooks.py
-    // gets called after adding an ACE Code note, so without this check we'd end up
-    // with an extra substitute element on the fields.
-    const substituteElementsAlreadyPresent =
-      document.querySelector(
-        "." + AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
-      ) !== null;
-    if (substituteElementsAlreadyPresent) {
-      return;
-    }
-    this.#hideOverriddenFieldsDefaultUiElements(fieldsCssSelectors);
-    this.#addOverridenFieldsSubstituteUiElements(fieldsCssSelectors);
-  }
+    noteEditor.then((editor) => {
+      const substituteElementsAlreadyPresent =
+        document.querySelector(
+          "." + AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
+        ) !== null;
 
-  /**
-   * @param {string[]} fieldsCssSelectors
-   */
-  #hideOverriddenFieldsDefaultUiElements(fieldsCssSelectors) {
-    const style = document.createElement("style");
-    style.id = AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID;
-    style.textContent = `
-      ${fieldsCssSelectors.join(",")} {
-         display: none !important;
-       }
-     `;
-    document.head.append(style);
-  }
+      if (substituteElementsAlreadyPresent) {
+        return;
+      }
 
-  /**
-   * @param {string[]} fieldsCssSelectors
-   */
-  #addOverridenFieldsSubstituteUiElements(fieldsCssSelectors) {
-    fieldsCssSelectors.forEach((selector) => {
-      void waitForElement(selector).then((el) => {
-        new window.CodeMirror.EditorView({
-          parent: el.parentElement,
-          extensions: [
-            window.CodeMirror.basicSetup,
-            window.CodeMirror.EditorView.editorAttributes.of({
-              class: AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
-            }),
-          ],
+      // const style = document.createElement("style");
+      // style.id = AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID;
+      // style.textContent = `
+      // ${fieldsCssSelectors.join(",")} {
+      //    display: none !important;
+      //  }
+      // ;
+      // document.head.append(style);
+
+      fieldsOverrideConfig.forEach((fieldConfig) => {
+        const selector = `.note-editor .fields > :nth-child(${fieldConfig.index + 1}) .collapsible`;
+        void waitForElement(selector).then((el) => {
+          new window.CodeMirror.EditorView({
+            parent: el.parentElement,
+            extensions: [
+              window.CodeMirror.basicSetup,
+              window.CodeMirror.EditorView.editorAttributes.of({
+                class: AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
+              }),
+              window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
+                if (viewUpdate.docChanged) {
+                  const newValue = viewUpdate.state.doc.toString();
+                  editor.fields[fieldConfig.index].editingArea.content.set(
+                    `<pre>${newValue}</pre>`,
+                  );
+                }
+              }),
+            ],
+          });
         });
       });
     });
