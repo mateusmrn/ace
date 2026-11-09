@@ -111,19 +111,23 @@ class AceExtension {
         return;
       }
 
-      // const style = document.createElement("style");
-      // style.id = AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID;
-      // style.textContent = `
-      // ${fieldsCssSelectors.join(",")} {
-      //    display: none !important;
-      //  }
-      // ;
-      // document.head.append(style);
+      const fieldsCssSelectors = fieldsOverrideConfig.map(
+        (config) =>
+          `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
+      );
+      const style = document.createElement("style");
+      style.id = AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID;
+      style.textContent = `
+       ${fieldsCssSelectors.join(",")} {
+          display: none !important;
+        }
+       ;`;
+      document.head.append(style);
 
       fieldsOverrideConfig.forEach((fieldConfig) => {
         const selector = `.note-editor .fields > :nth-child(${fieldConfig.index + 1}) .collapsible`;
         void waitForElement(selector).then((el) => {
-          new window.CodeMirror.EditorView({
+          const view = new window.CodeMirror.EditorView({
             parent: el.parentElement,
             extensions: [
               window.CodeMirror.basicSetup,
@@ -134,12 +138,24 @@ class AceExtension {
                 if (viewUpdate.docChanged) {
                   const newValue = viewUpdate.state.doc.toString();
                   editor.fields[fieldConfig.index].editingArea.content.set(
-                    `<pre>${newValue}</pre>`,
+                    newValue,
                   );
                 }
               }),
             ],
           });
+
+          editor.fields[fieldConfig.index].editingArea.content.subscribe(
+            (value) => {
+              const currentDoc = view.state.doc.toString();
+              if (value === currentDoc) {
+                return;
+              }
+              view.dispatch({
+                changes: { from: 0, to: currentDoc.length, insert: value },
+              });
+            },
+          );
         });
       });
     });
