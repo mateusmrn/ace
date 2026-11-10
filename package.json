@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@codemirror/legacy-modes": "^6.5.5",
+    "@uiw/codemirror-theme-darcula": "^4.25.12",
     "codemirror": "^6.0.1"
   },
   "devDependencies": {

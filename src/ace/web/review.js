@@ -23,7 +23,7 @@ class AceReviewExtension {
   #mount(inputContainer) {
     const view = new window.CodeMirror.EditorView({
       parent: inputContainer,
-      extensions: [window.CodeMirror.basicSetup],
+      extensions: [window.CodeMirror.basicSetup, window.CodeMirror.darcula],
     });
 
     this.#submitButton = document.getElementById(AceReviewExtension.#SUBMIT_ID);

@@ -15,6 +15,12 @@ from ace.logger import logger
 
 code_note_type_name = "ACE Code"
 
+_EXECUTOR_SCRIPT_DESCRIPTION = (
+    "Bash script. Available variables: $ACE_CODE_FILE (path to whichever code is "
+    "currently being run), $ACE_REFERENCE_CODE_FILE (only set while running the "
+    "reference code), $ACE_INPUT_CODE_FILE (only set while running the submitted code)."
+)
+
 _QFMT = """
 <div class="ace-problem-statement">{{Problem Statement}}</div>
 
@@ -43,7 +49,17 @@ _CSS = """
     text-align: left;
     margin: 1em auto;
     max-width: 40em;
-    border: 1px solid #c4c4c4;
+    border: 1px solid #444;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+#ace-review-input .cm-editor {
+    min-height: 4em;
+}
+
+#ace-review-input .cm-scroller {
+    font-family: monospace;
 }
 
 .ace-hidden {
@@ -126,6 +142,7 @@ def init_code_note_type(collection: Collection):
 
 def inject_extension_js_into_webview(web_content: WebContent, context: object | None):
     if isinstance(context, Editor):
+        web_content.css.append("/_addons/ace/web/editor.css")
         web_content.js.append("/_addons/ace/web/codemirror.js")
         web_content.js.append("/_addons/ace/web/editor.js")
         logger.info("Extension JavaScript successfully injected into the Editor webview")
@@ -147,7 +164,9 @@ def override_code_field_ui_component(js_args: str, note: Note, editor: Editor):
         js_args += (
             "\nwindow.__ACE__.onCodeNoteTypeLoad([\n"
             f"  {{ index: {reference_code_field['ord']} }},\n"
-            f"  {{ index: {executor_script_field['ord']} }}\n"
+            f"  {{ index: {executor_script_field['ord']},"
+            f" language: {json.dumps('shell')},"
+            f" description: {json.dumps(_EXECUTOR_SCRIPT_DESCRIPTION)} }}\n"
             "]);\n"
         )
     else:

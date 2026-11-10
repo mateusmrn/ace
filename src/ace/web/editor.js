@@ -7,6 +7,7 @@ class AceExtension {
    * @typedef {object} FieldOverrideConfig
    *  @property {number} index The index of the position of the field in the form
    *  @property {string | undefined} language The language of the substitute CodeMirror element
+   *  @property {string | undefined} description Text shown below the substitute CodeMirror element
    */
 
   /**
@@ -127,23 +128,46 @@ class AceExtension {
       fieldsOverrideConfig.forEach((fieldConfig) => {
         const selector = `.note-editor .fields > :nth-child(${fieldConfig.index + 1}) .collapsible`;
         void waitForElement(selector).then((el) => {
+          const container = document.createElement("div");
+          container.className = AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS;
+          el.parentElement.append(container);
+
+          const editorBox = document.createElement("div");
+          editorBox.className = "ace-code-editor-box";
+          container.append(editorBox);
+
+          const extensions = [
+            window.CodeMirror.basicSetup,
+            window.CodeMirror.darcula,
+            window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
+              if (viewUpdate.docChanged) {
+                const newValue = viewUpdate.state.doc.toString();
+                editor.fields[fieldConfig.index].editingArea.content.set(
+                  newValue,
+                );
+              }
+            }),
+          ];
+
+          if (fieldConfig.language === "shell") {
+            extensions.push(
+              window.CodeMirror.StreamLanguage.define(
+                window.CodeMirror.languages.shell,
+              ),
+            );
+          }
+
           const view = new window.CodeMirror.EditorView({
-            parent: el.parentElement,
-            extensions: [
-              window.CodeMirror.basicSetup,
-              window.CodeMirror.EditorView.editorAttributes.of({
-                class: AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
-              }),
-              window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
-                if (viewUpdate.docChanged) {
-                  const newValue = viewUpdate.state.doc.toString();
-                  editor.fields[fieldConfig.index].editingArea.content.set(
-                    newValue,
-                  );
-                }
-              }),
-            ],
+            parent: editorBox,
+            extensions,
           });
+
+          if (fieldConfig.description) {
+            const description = document.createElement("p");
+            description.className = "ace-field-override-description";
+            description.textContent = fieldConfig.description;
+            container.append(description);
+          }
 
           editor.fields[fieldConfig.index].editingArea.content.subscribe(
             (value) => {

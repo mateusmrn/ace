@@ -1,0 +1,23 @@
+.ace-code-field-override-substitute {
+  margin: 0.25em 0;
+}
+
+.ace-code-editor-box {
+  border: 1px solid #444;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ace-code-editor-box .cm-editor {
+  min-height: 4em;
+}
+
+.ace-code-editor-box .cm-scroller {
+  font-family: monospace;
+}
+
+.ace-field-override-description {
+  font-size: 0.85em;
+  opacity: 0.7;
+  margin: 0.25em 0 0.75em 0;
+}
