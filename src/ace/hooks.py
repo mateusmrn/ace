@@ -22,16 +22,27 @@ _EXECUTOR_SCRIPT_DESCRIPTION = (
     "reference code), $ACE_INPUT_CODE_FILE (only set while running the submitted code)."
 )
 
-_QFMT = """
-<div class="ace-problem-statement">{{Problem Statement}}</div>
+_MOBILE_WARNING = (
+    '<div id="ace-mobile-warning">'
+    "This card does not work properly on mobile phones. We recommend that you "
+    "bury it and study it on your computer."
+    "</div>"
+)
+
+_QFMT = f"""
+{_MOBILE_WARNING}
+
+<div class="ace-problem-statement">{{{{Problem Statement}}}}</div>
 
 <div id="ace-review-input"></div>
 """
 
-_AFMT = """
-{{Problem Statement}}
+_AFMT = f"""
+{_MOBILE_WARNING}
+
+{{{{Problem Statement}}}}
 <hr id=answer>
-{{Reference Code}}
+{{{{Reference Code}}}}
 
 <div id="ace-review-spinner">
   <div class="ace-spinner"></div>
@@ -47,6 +58,25 @@ _CSS = """
     text-align: center;
     color: black;
     background-color: white;
+}
+
+/* AnkiDroid/AnkiMobile add a "mobile" class to the document root; none of this
+   add-on's JS loads there (no add-on system on mobile clients), so the warning
+   is pure CSS, hidden on desktop and shown only on mobile. */
+#ace-mobile-warning {
+    display: none;
+    margin: 1em auto;
+    max-width: 40em;
+    padding: 0.75em;
+    border: 1px solid #b45309;
+    border-radius: 3px;
+    background: #fef3c7;
+    color: #92400e;
+    text-align: left;
+}
+
+.mobile #ace-mobile-warning {
+    display: block;
 }
 
 #ace-review-input {
