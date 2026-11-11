@@ -92,6 +92,15 @@ class AceExtension {
    * @param {FieldOverrideConfig[]} fieldsOverrideConfig
    */
   onCodeNoteTypeLoad(fieldsOverrideConfig) {
+    // onCodeNoteTypeLoad can be called again before the previous call's async
+    // mounting work has created any DOM elements yet (e.g. right after adding a
+    // note), so this needs to be a synchronous claim -- checking the DOM for
+    // existing elements later, after an await, lets concurrent calls race past it.
+    if (window.__ACE_FIELDS_MOUNTED__) {
+      return;
+    }
+    window.__ACE_FIELDS_MOUNTED__ = true;
+
     /** @type {Promise<NoteEditorAPI>} */
     const noteEditor = new Promise((res) => {
       const ankiNoteEditor = require("anki/NoteEditor");
@@ -103,15 +112,6 @@ class AceExtension {
     });
 
     noteEditor.then((editor) => {
-      const substituteElementsAlreadyPresent =
-        document.querySelector(
-          "." + AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS,
-        ) !== null;
-
-      if (substituteElementsAlreadyPresent) {
-        return;
-      }
-
       const fieldsCssSelectors = fieldsOverrideConfig.map(
         (config) =>
           `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
@@ -186,6 +186,8 @@ class AceExtension {
   }
 
   onCodeNoteTypeUnload() {
+    window.__ACE_FIELDS_MOUNTED__ = false;
+
     const styleBlock = document.getElementById(
       AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID,
     );

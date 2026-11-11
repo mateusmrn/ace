@@ -1,12 +1,16 @@
+// review.js can be re-injected/re-executed for a later card before an earlier
+// execution's pending waitForElement() ever resolves (e.g. if the reviewer sets
+// fresh page content per card rather than just swapping DOM). Each execution
+// claims the current generation; a watcher only acts if its generation is still
+// the latest one by the time it resolves, so a stale execution can't mount a
+// second CodeMirror editor on top of the current one.
+const aceReviewGeneration = (window.__ACE_REVIEW_GENERATION__ =
+  (window.__ACE_REVIEW_GENERATION__ ?? 0) + 1);
+
 class AceReviewExtension {
   static #INPUT_ID = "ace-review-input";
-  static #SUBMIT_ID = "ace-review-submit";
   static #SPINNER_ID = "ace-review-spinner";
   static #RESULT_ID = "ace-review-result";
-
-  #spinner = null;
-  #resultEl = null;
-  #submitButton = null;
 
   constructor() {
     this.#watchForCard();
@@ -14,56 +18,67 @@ class AceReviewExtension {
 
   #watchForCard() {
     void waitForElement(`#${AceReviewExtension.#INPUT_ID}`).then((el) => {
+      if (window.__ACE_REVIEW_GENERATION__ !== aceReviewGeneration) {
+        return; // a newer execution of this script has taken over
+      }
       this.#mount(el);
-      // the next ACE Code card replaces this element wholesale; watch for it too
-      this.#watchForCard();
+      // `el` stays in the DOM (we mounted CodeMirror inside it, not over it), so
+      // re-arming immediately would just find it again and mount a second editor
+      // into it -- on and on, forever. Wait for it to actually be removed (the
+      // next card replacing it) before watching for the next one.
+      void waitForRemoval(el).then(() => this.#watchForCard());
     });
   }
 
   #mount(inputContainer) {
-    const view = new window.CodeMirror.EditorView({
+    new window.CodeMirror.EditorView({
       parent: inputContainer,
-      extensions: [window.CodeMirror.basicSetup, window.CodeMirror.darcula],
-    });
-
-    this.#submitButton = document.getElementById(AceReviewExtension.#SUBMIT_ID);
-    this.#spinner = document.getElementById(AceReviewExtension.#SPINNER_ID);
-    this.#resultEl = document.getElementById(AceReviewExtension.#RESULT_ID);
-
-    this.#submitButton.addEventListener("click", () => {
-      this.#resultEl.classList.add("ace-hidden");
-      this.#spinner.classList.remove("ace-hidden");
-      this.#submitButton.disabled = true;
-
-      const inputCode = view.state.doc.toString();
-      pycmd(`ace_run:${JSON.stringify({ inputCode })}`);
+      extensions: [
+        window.CodeMirror.basicSetup,
+        window.CodeMirror.darcula,
+        window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
+          if (viewUpdate.docChanged) {
+            const inputCode = viewUpdate.state.doc.toString();
+            pycmd(`ace_input_changed:${JSON.stringify({ inputCode })}`);
+          }
+        }),
+      ],
     });
   }
 
   /**
+   * Called by Python once the comparison for the card just answered finishes.
+   * This runs on the answer side, which is a different render than the one
+   * #mount() ran on, so it looks up its elements fresh rather than reusing
+   * anything cached from #mount().
    * @param {{status: "success"} | {status: "failure", referenceOutput: string, inputOutput: string} | {status: "error", message: string}} result
    */
   onResult(result) {
-    this.#spinner.classList.add("ace-hidden");
-    this.#submitButton.disabled = false;
+    const spinner = document.getElementById(AceReviewExtension.#SPINNER_ID);
+    const resultEl = document.getElementById(AceReviewExtension.#RESULT_ID);
+    if (!spinner || !resultEl) {
+      return; // the user has already moved past this card
+    }
 
-    this.#resultEl.classList.remove("ace-hidden");
-    this.#resultEl.classList.remove(
+    spinner.classList.add("ace-hidden");
+
+    resultEl.classList.remove("ace-hidden");
+    resultEl.classList.remove(
       "ace-result-success",
       "ace-result-failure",
       "ace-result-error",
     );
-    this.#resultEl.replaceChildren();
+    resultEl.replaceChildren();
 
     if (result.status === "success") {
-      this.#resultEl.classList.add("ace-result-success");
-      this.#resultEl.textContent = "Success -- your output matches the reference.";
+      resultEl.classList.add("ace-result-success");
+      resultEl.textContent = "Success -- your output matches the reference.";
       return;
     }
 
     if (result.status === "failure") {
-      this.#resultEl.classList.add("ace-result-failure");
-      this.#resultEl.append(
+      resultEl.classList.add("ace-result-failure");
+      resultEl.append(
         AceReviewExtension.#textNode("p", "Output differs from the reference."),
         AceReviewExtension.#textNode("p", "Reference output:"),
         AceReviewExtension.#textNode("pre", result.referenceOutput),
@@ -73,10 +88,8 @@ class AceReviewExtension {
       return;
     }
 
-    this.#resultEl.classList.add("ace-result-error");
-    this.#resultEl.append(
-      AceReviewExtension.#textNode("p", `Error: ${result.message}`),
-    );
+    resultEl.classList.add("ace-result-error");
+    resultEl.append(AceReviewExtension.#textNode("p", `Error: ${result.message}`));
   }
 
   static #textNode(tagName, text) {
@@ -100,6 +113,26 @@ function waitForElement(selector) {
       if (targetElement) {
         obs.disconnect();
         resolve(targetElement);
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  });
+}
+
+function waitForRemoval(element) {
+  return new Promise((resolve) => {
+    if (!document.body.contains(element)) {
+      return resolve();
+    }
+
+    const observer = new MutationObserver((_, obs) => {
+      if (!document.body.contains(element)) {
+        obs.disconnect();
+        resolve();
       }
     });
 

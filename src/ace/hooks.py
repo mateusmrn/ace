@@ -1,6 +1,7 @@
 import json
 from typing import Any, cast
 
+from anki.cards import Card
 from anki.collection import Collection
 from anki.notes import Note
 from aqt import mw
@@ -25,16 +26,19 @@ _QFMT = """
 <div class="ace-problem-statement">{{Problem Statement}}</div>
 
 <div id="ace-review-input"></div>
-<button id="ace-review-submit">Submit</button>
+"""
 
-<div id="ace-review-spinner" class="ace-hidden">
+_AFMT = """
+{{Problem Statement}}
+<hr id=answer>
+{{Reference Code}}
+
+<div id="ace-review-spinner">
   <div class="ace-spinner"></div>
 </div>
 
 <div id="ace-review-result" class="ace-hidden"></div>
 """
-
-_AFMT = "{{Problem Statement}}\n<hr id=answer>\n{{Reference Code}}"
 
 _CSS = """
 .card {
@@ -174,7 +178,13 @@ def override_code_field_ui_component(js_args: str, note: Note, editor: Editor):
     return js_args
 
 
-_RUN_MESSAGE_PREFIX = "ace_run:"
+_INPUT_CHANGED_MESSAGE_PREFIX = "ace_input_changed:"
+
+# The user's typed code never lives in a note field (it's ephemeral, per-attempt),
+# so it's only known to the reviewer's webview JS. review.js relays it here on every
+# keystroke; by the time reviewer_did_show_answer fires we already have the latest
+# value without needing to ask the (possibly already-replaced) question-side DOM for it.
+_latest_input_code = ""
 
 
 def _push_review_result(reviewer: Reviewer, result: ExecutionResult) -> None:
@@ -184,28 +194,46 @@ def _push_review_result(reviewer: Reviewer, result: ExecutionResult) -> None:
 def handle_reviewer_js_message(
     handled: tuple[bool, Any], message: str, context: object
 ) -> tuple[bool, Any]:
+    global _latest_input_code
+
     if not isinstance(context, Reviewer):
         return handled
 
-    if not message.startswith(_RUN_MESSAGE_PREFIX):
+    if not message.startswith(_INPUT_CHANGED_MESSAGE_PREFIX):
         return handled
 
-    reviewer = context
     try:
-        payload = json.loads(message[len(_RUN_MESSAGE_PREFIX) :])
-        input_code = payload["inputCode"]
+        payload = json.loads(message[len(_INPUT_CHANGED_MESSAGE_PREFIX) :])
+        _latest_input_code = payload["inputCode"]
+    except Exception:
+        logger.exception("Failed to handle ace_input_changed message")
 
-        card = reviewer.card
-        if card is None:
-            raise ValueError("No card is currently being reviewed")
+    return (True, None)
 
+
+def reset_latest_input_code(card: Card) -> None:
+    # A card's front might go untouched (no keystrokes to relay a fresh value), so
+    # without this the previous card's input could still look current.
+    global _latest_input_code
+    _latest_input_code = ""
+
+
+def run_code_comparison_on_show_answer(card: Card) -> None:
+    note_type = cast(NotetypeDict, card.note_type())
+    if note_type["name"] != code_note_type_name:
+        return
+
+    reviewer = mw.reviewer
+    try:
         note = card.note()
         reference_code = note["Reference Code"]
         executor_script = note["Executor Script"]
     except Exception as error:
-        logger.exception("Failed to handle ace_run message")
+        logger.exception("Failed to read ACE Code fields for comparison")
         _push_review_result(reviewer, {"status": "error", "message": str(error)})
-        return (True, None)
+        return
+
+    input_code = _latest_input_code
 
     def run(_: Collection) -> ExecutionResult:
         return compare_reference_and_input_code(reference_code, input_code, executor_script)
@@ -214,5 +242,3 @@ def handle_reviewer_js_message(
         _push_review_result(reviewer, result)
 
     QueryOp(parent=mw, op=run, success=on_done).without_collection().run_in_background()
-
-    return (True, None)
