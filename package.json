@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "esbuild web/src/codemirror.js --bundle --outfile=src/ace/web/codemirror.js",
-    "watch": "esbuild web/src/codemirror.js --bundle --outfile=src/ace/web/codemirror.js --watch"
+    "watch": "esbuild web/src/codemirror.js --bundle --outfile=src/ace/web/codemirror.js --watch",
+    "package": "python3 scripts/package.py"
   },
   "dependencies": {
     "@codemirror/legacy-modes": "^6.5.5",
