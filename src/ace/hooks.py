@@ -1,8 +1,10 @@
 import json
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from anki.cards import Card
 from anki.collection import Collection
+from anki.errors import AbortSchemaModification
+from anki.models import ModelManager
 from anki.notes import Note
 from aqt import mw
 from aqt.editor import Editor
@@ -10,7 +12,7 @@ from aqt.operations import QueryOp
 from aqt.reviewer import Reviewer
 from aqt.webview import WebContent
 
-from .anki_types import NotetypeDict
+from .anki_types import FieldDict, NotetypeDict
 from .executor import ExecutionResult, compare_reference_and_input_code
 from .logger import logger
 from .paths import web_asset_url
@@ -21,6 +23,20 @@ _EXECUTOR_SCRIPT_DESCRIPTION = (
     "Bash script. Available variables: $ACE_CODE_FILE (path to whichever code is "
     "currently being run), $ACE_REFERENCE_CODE_FILE (only set while running the "
     "reference code), $ACE_INPUT_CODE_FILE (only set while running the submitted code)."
+)
+
+
+class _FieldSpec(NamedTuple):
+    name: str
+    description: str = ""
+
+
+# Single source of truth for the note type's fields: used both to create it and, on
+# every load, to bring an already-existing one up to date.
+_FIELDS = (
+    _FieldSpec("Problem Statement"),
+    _FieldSpec("Reference Code"),
+    _FieldSpec("Executor Script", _EXECUTOR_SCRIPT_DESCRIPTION),
 )
 
 _MOBILE_WARNING = (
@@ -59,6 +75,28 @@ _CSS = """
     text-align: center;
     color: black;
     background-color: white;
+
+    /* The code blocks need their own palette rather than inheriting one. In night
+       mode Anki flips the card's text to a light colour but leaves a hardcoded
+       background alone, which left light text sitting on a light grey box. */
+    --ace-code-bg: #f5f5f5;
+    --ace-code-fg: #24292f;
+    --ace-code-border: #c4c4c4;
+    --ace-success: #15803d;
+    --ace-failure: #b45309;
+    --ace-error: #b91c1c;
+}
+
+/* Anki puts nightMode on the same <body> that carries .card, so redefining the
+   variables here re-themes every rule below without duplicating any of them.
+   Equal specificity to .card, so this has to stay after it. */
+.nightMode {
+    --ace-code-bg: #2b2b2b;
+    --ace-code-fg: #e4e4e4;
+    --ace-code-border: #555555;
+    --ace-success: #4ade80;
+    --ace-failure: #fbbf24;
+    --ace-error: #f87171;
 }
 
 /* AnkiDroid/AnkiMobile add a "mobile" class to the document root; none of this
@@ -121,31 +159,89 @@ _CSS = """
     text-align: center;
 }
 
-.ace-result-success { color: #15803d; }
-.ace-result-failure { color: #b45309; }
-.ace-result-error { color: #b91c1c; }
+.ace-result-success { color: var(--ace-success); }
+.ace-result-failure { color: var(--ace-failure); }
+.ace-result-error { color: var(--ace-error); }
 
 .ace-reference-code {
     margin: 1em auto;
-    max-width: 40em;
+    /* em here resolves against this element's own reduced font-size, so 40em would
+       come out narrower than the result blocks below. 40 / 0.8 lines them up, and
+       border-box keeps the padding and border inside that width so the edges match. */
+    box-sizing: border-box;
+    max-width: 50em;
     padding: 0.5em;
     font-family: monospace;
     font-size: 0.8em;
     text-align: left;
     white-space: pre-wrap;
-    background: #f5f5f5;
-    border: 1px solid #c4c4c4;
+    color: var(--ace-code-fg);
+    background: var(--ace-code-bg);
+    border: 1px solid var(--ace-code-border);
     border-radius: 3px;
 }
 
 #ace-review-result pre {
     text-align: left;
     white-space: pre-wrap;
-    background: #f5f5f5;
-    border: 1px solid #c4c4c4;
+    font-size: 0.8em;
+    color: var(--ace-code-fg);
+    background: var(--ace-code-bg);
+    border: 1px solid var(--ace-code-border);
+    border-radius: 3px;
     padding: 0.5em;
 }
 """
+
+
+def _sync_fields(
+    collection: Collection, model_manager: ModelManager, code_note_type: NotetypeDict
+) -> None:
+    """Bring an existing note type's fields in line with _FIELDS.
+
+    Only ever adds. Removing a field deletes its content from every note using the
+    note type, which is too destructive to do behind the user's back -- an unexpected
+    field is far more likely to be deliberate than it is to be junk -- so extras are
+    reported and left alone.
+    """
+    raw_code_note_type = cast(dict[str, Any], code_note_type)
+    fields_by_name = {field["name"]: field for field in code_note_type["flds"]}
+
+    missing = [spec for spec in _FIELDS if spec.name not in fields_by_name]
+    if missing:
+        # Unlike editing templates or css, adding a field is a schema change, and the
+        # next AnkiWeb sync becomes a full upload. mod_schema() is how Anki asks the
+        # user about that; without it update_dict() would commit them to it silently.
+        try:
+            collection.mod_schema(check=True)
+        except AbortSchemaModification:
+            logger.warning(
+                f"Declined the schema change needed to add "
+                f"{[spec.name for spec in missing]} to {code_note_type_name}; "
+                f"leaving the fields as they are"
+            )
+            missing = []
+
+    for spec in missing:
+        field = cast(FieldDict, model_manager.new_field(spec.name))
+        model_manager.add_field(raw_code_note_type, cast(Any, field))
+        fields_by_name[spec.name] = field
+        logger.info(f"Added missing field {spec.name!r} to {code_note_type_name}")
+
+    # Descriptions are not structural, so these cost nothing and always apply.
+    for spec in _FIELDS:
+        field = fields_by_name.get(spec.name)
+        if field is not None:
+            field["description"] = spec.description
+
+    known_names = {spec.name for spec in _FIELDS}
+    unknown = [name for name in fields_by_name if name not in known_names]
+    if unknown:
+        logger.warning(
+            f"{code_note_type_name} has fields this add-on does not know about: "
+            f"{unknown}. Leaving them in place -- removing a field would delete its "
+            f"content from every note using the note type."
+        )
 
 
 def init_code_note_type(collection: Collection):
@@ -162,9 +258,8 @@ def init_code_note_type(collection: Collection):
         # untyped view at each call while keeping the structured one for our own reads/writes.
         raw_code_note_type = cast(dict[str, Any], code_note_type)
 
-        model_manager.add_field(raw_code_note_type, model_manager.new_field("Problem Statement"))
-        model_manager.add_field(raw_code_note_type, model_manager.new_field("Reference Code"))
-        model_manager.add_field(raw_code_note_type, model_manager.new_field("Executor Script"))
+        for spec in _FIELDS:
+            model_manager.add_field(raw_code_note_type, model_manager.new_field(spec.name))
 
         note_type_template = model_manager.new_template("Card 1")
         note_type_template["qfmt"] = _QFMT
@@ -179,6 +274,7 @@ def init_code_note_type(collection: Collection):
     # Always re-sync the template/css with what's defined in code, so changes here take
     # effect without needing to delete and recreate an already-existing note type.
     raw_code_note_type = cast(dict[str, Any], code_note_type)
+    _sync_fields(collection, model_manager, code_note_type)
     template = code_note_type["tmpls"][0]
     template["qfmt"] = _QFMT
     template["afmt"] = _AFMT
