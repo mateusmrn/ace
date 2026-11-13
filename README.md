@@ -87,10 +87,10 @@ uv sync
 
 ## Packaging
 
-`src/ace/manifest.json` names the add-on for installs from a `.ankiaddon` file or
-from AnkiWeb — Anki reads it out of the archive to decide what to call the add-on
-and which folder to unpack it into. It is ignored for a symlinked working copy, so
-it has no effect during development.
+`src/ace/manifest.json` identifies the add-on at install time: Anki reads it out of
+the archive to decide what to call the add-on and, for a sideloaded file, which
+folder to unpack it into. It plays no part in a symlinked working copy, so it has
+no effect during development.
 
 ```json
 {
@@ -99,9 +99,16 @@ it has no effect during development.
 }
 ```
 
-Publishing to AnkiWeb means changing `package` to the numeric ID AnkiWeb assigns,
-since that is the folder name an install will use. Nothing else needs to change:
-the Python imports are relative and the asset URLs are derived at runtime.
+`package` only applies to installs from a file. An add-on installed from AnkiWeb
+is unpacked into a folder named after its numeric AnkiWeb ID instead — the
+download path hands Anki its own `package=str(id)`, which overrides whatever the
+packaged manifest said — so nothing here needs changing in order to publish. The
+`name` key does survive that override, and Anki prefers it to the add-on's AnkiWeb
+title.
+
+AnkiWeb has no private or unlisted visibility for add-ons: an upload is public.
+Distributing the `.ankiaddon` file yourself is the only way to keep it private,
+which is the case `package` exists for.
 
 To build a distributable `.ankiaddon`:
 
