@@ -1,7 +1,7 @@
 [project]
 name = "ace"
 version = "0.1.0"
-description = "Add your description here"
+description = "Anki add-on for practicing code: write a solution during review, then diff its output against the reference"
 readme = "README.md"
 authors = [
     { name = "mateusmrn", email = "mateusmelornrn@gmail.com" }
