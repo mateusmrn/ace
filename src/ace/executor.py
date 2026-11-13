@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Literal, TypedDict
 
-from ace.logger import logger
+from .logger import logger
 
 RUN_TIMEOUT_SECONDS = 5
 

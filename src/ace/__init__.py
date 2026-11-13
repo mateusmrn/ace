@@ -8,7 +8,7 @@ from aqt.gui_hooks import (
     webview_will_set_content,
 )
 
-from ace.hooks import (
+from .hooks import (
     handle_reviewer_js_message,
     init_code_note_type,
     inject_extension_js_into_webview,
@@ -16,9 +16,10 @@ from ace.hooks import (
     reset_latest_input_code,
     run_code_comparison_on_show_answer,
 )
-from ace.logger import logger
+from .logger import logger
+from .paths import ADDON_PACKAGE
 
-mw.addonManager.setWebExports("ace", r"web/.*\.(js|css|map)")
+mw.addonManager.setWebExports(ADDON_PACKAGE, r"web/.*\.(js|css|map)")
 
 # Anki hooks setup
 collection_did_load.append(init_code_note_type)

@@ -10,9 +10,10 @@ from aqt.operations import QueryOp
 from aqt.reviewer import Reviewer
 from aqt.webview import WebContent
 
-from ace.anki_types import NotetypeDict
-from ace.executor import ExecutionResult, compare_reference_and_input_code
-from ace.logger import logger
+from .anki_types import NotetypeDict
+from .executor import ExecutionResult, compare_reference_and_input_code
+from .logger import logger
+from .paths import web_asset_url
 
 code_note_type_name = "ACE Code"
 
@@ -176,13 +177,13 @@ def init_code_note_type(collection: Collection):
 
 def inject_extension_js_into_webview(web_content: WebContent, context: object | None):
     if isinstance(context, Editor):
-        web_content.css.append("/_addons/ace/web/editor.css")
-        web_content.js.append("/_addons/ace/web/codemirror.js")
-        web_content.js.append("/_addons/ace/web/editor.js")
+        web_content.css.append(web_asset_url("editor.css"))
+        web_content.js.append(web_asset_url("codemirror.js"))
+        web_content.js.append(web_asset_url("editor.js"))
         logger.info("Extension JavaScript successfully injected into the Editor webview")
     elif isinstance(context, Reviewer):
-        web_content.js.append("/_addons/ace/web/codemirror.js")
-        web_content.js.append("/_addons/ace/web/review.js")
+        web_content.js.append(web_asset_url("codemirror.js"))
+        web_content.js.append(web_asset_url("review.js"))
         logger.info("Extension JavaScript successfully injected into the Reviewer webview")
 
 
