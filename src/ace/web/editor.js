@@ -139,6 +139,12 @@ class AceExtension {
           const extensions = [
             window.CodeMirror.basicSetup,
             window.CodeMirror.darcula,
+            // Tab indents rather than moving to the next field. That does override
+            // Anki's usual field navigation, so note the way out: Escape arms
+            // CodeMirror's tab-focus mode for two seconds, during which Tab and
+            // Shift-Tab move focus as normal (Ctrl-m, or Shift-Alt-m on macOS,
+            // toggles the same thing without the time limit).
+            window.CodeMirror.keymap.of([window.CodeMirror.indentWithTab]),
             window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
               if (viewUpdate.docChanged) {
                 const newValue = viewUpdate.state.doc.toString();
