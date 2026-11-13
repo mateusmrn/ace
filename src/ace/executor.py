@@ -24,7 +24,22 @@ class ErrorResult(TypedDict):
     message: str
 
 
+class RunCompleted(TypedDict):
+    """One executor-script run that actually finished, however it exited."""
+
+    status: Literal["completed"]
+    exitCode: int
+    stdout: str
+    stderr: str
+
+
 ExecutionResult = SuccessResult | FailureResult | ErrorResult
+RunResult = RunCompleted | ErrorResult
+
+_NO_EXECUTOR_SCRIPT_MESSAGE = (
+    "This note has no Executor Script, so there is nothing to run the code with. "
+    "Add one that runs $ACE_CODE_FILE and prints its output."
+)
 
 
 _ACE_ENV_VARS = ("ACE_CODE_FILE", "ACE_REFERENCE_CODE_FILE", "ACE_INPUT_CODE_FILE")
@@ -65,11 +80,7 @@ def compare_reference_and_input_code(
     # and the card reports success no matter what was typed -- which is the state every
     # note is in until its Executor Script has been filled in.
     if not executor_script.strip():
-        return {
-            "status": "error",
-            "message": "This note has no Executor Script, so there is nothing to run "
-            "the code with. Add one that runs $ACE_CODE_FILE and prints its output.",
-        }
+        return {"status": "error", "message": _NO_EXECUTOR_SCRIPT_MESSAGE}
 
     try:
         with tempfile.TemporaryDirectory(prefix="ace-run-") as tmpdir_name:
@@ -124,6 +135,53 @@ def compare_reference_and_input_code(
                 "status": "failure",
                 "referenceOutput": reference_output,
                 "inputOutput": input_output,
+            }
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "error",
+            "message": f"Execution timed out after {RUN_TIMEOUT_SECONDS} seconds",
+        }
+    except OSError as error:
+        logger.exception("Unexpected error while running executor script")
+        return {"status": "error", "message": str(error)}
+
+
+def run_reference_code(reference_code: str, executor_script: str) -> RunResult:
+    """Run `executor_script` once against the reference code and report everything it
+    produced -- stdout, stderr and exit status.
+
+    This backs the editor's "Run Reference Code" button. Unlike the review-time
+    comparison it does not treat a non-zero exit as an error to be summarised away:
+    a failing compile is exactly what the card's author is looking for, so the
+    stderr and the exit code are the useful part of the answer.
+    """
+    if not executor_script.strip():
+        return {"status": "error", "message": _NO_EXECUTOR_SCRIPT_MESSAGE}
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="ace-run-") as tmpdir_name:
+            tmpdir = Path(tmpdir_name)
+
+            reference_code_file = tmpdir / "reference_code"
+            reference_code_file.write_text(reference_code)
+
+            executor_script_file = tmpdir / "executor.sh"
+            executor_script_file.write_text(executor_script)
+
+            run = _run_executor_script(
+                executor_script_file,
+                tmpdir,
+                {
+                    "ACE_CODE_FILE": str(reference_code_file),
+                    "ACE_REFERENCE_CODE_FILE": str(reference_code_file),
+                },
+            )
+
+            return {
+                "status": "completed",
+                "exitCode": run.returncode,
+                "stdout": run.stdout.rstrip(),
+                "stderr": run.stderr.rstrip(),
             }
     except subprocess.TimeoutExpired:
         return {

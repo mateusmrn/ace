@@ -13,7 +13,12 @@ from aqt.reviewer import Reviewer
 from aqt.webview import WebContent
 
 from .anki_types import FieldDict, NotetypeDict
-from .executor import ExecutionResult, compare_reference_and_input_code
+from .executor import (
+    ExecutionResult,
+    RunResult,
+    compare_reference_and_input_code,
+    run_reference_code,
+)
 from .logger import logger
 from .paths import web_asset_url
 
@@ -305,14 +310,16 @@ def override_code_field_ui_component(js_args: str, note: Note, editor: Editor):
         executor_script_field = next(
             field for field in note_type["flds"] if field["name"] == "Executor Script"
         )
-        js_args += (
-            "\nwindow.__ACE__.onCodeNoteTypeLoad([\n"
-            f"  {{ index: {reference_code_field['ord']} }},\n"
-            f"  {{ index: {executor_script_field['ord']},"
-            f" language: {json.dumps('shell')},"
-            f" description: {json.dumps(_EXECUTOR_SCRIPT_DESCRIPTION)} }}\n"
-            "]);\n"
-        )
+        fields_config = [
+            {"index": reference_code_field["ord"], "name": "Reference Code"},
+            {
+                "index": executor_script_field["ord"],
+                "name": "Executor Script",
+                "language": "shell",
+                "description": _EXECUTOR_SCRIPT_DESCRIPTION,
+            },
+        ]
+        js_args += f"\nwindow.__ACE__.onCodeNoteTypeLoad({json.dumps(fields_config)});\n"
     else:
         js_args += "\nwindow.__ACE__.onCodeNoteTypeUnload();\n"
     return js_args
@@ -382,3 +389,47 @@ def run_code_comparison_on_show_answer(card: Card) -> None:
         _push_review_result(reviewer, result)
 
     QueryOp(parent=mw, op=run, success=on_done).without_collection().run_in_background()
+
+
+_RUN_REFERENCE_MESSAGE_PREFIX = "ace_run_reference:"
+
+
+def _push_editor_run_result(editor: Editor, result: RunResult) -> None:
+    # The editor can be closed while the run is still in flight, and Editor.cleanup()
+    # sets web to None -- evaluating against that would raise inside the callback.
+    if editor.web is None:
+        logger.debug("Editor closed before the reference run finished; dropping result")
+        return
+    editor.web.eval(f"window.__ACE__.onReferenceRunResult({json.dumps(result)});")
+
+
+def handle_editor_js_message(
+    handled: tuple[bool, Any], message: str, context: object
+) -> tuple[bool, Any]:
+    """Run the Reference Code through the Executor Script for the editor's Run button."""
+    if not isinstance(context, Editor):
+        return handled
+
+    if not message.startswith(_RUN_REFERENCE_MESSAGE_PREFIX):
+        return handled
+
+    editor = context
+    try:
+        payload = json.loads(message[len(_RUN_REFERENCE_MESSAGE_PREFIX) :])
+        reference_code = payload["referenceCode"]
+        executor_script = payload["executorScript"]
+    except Exception as error:
+        logger.exception("Failed to handle ace_run_reference message")
+        _push_editor_run_result(editor, {"status": "error", "message": str(error)})
+        return (True, None)
+
+    def run(_: Collection) -> RunResult:
+        return run_reference_code(reference_code, executor_script)
+
+    def on_done(result: RunResult) -> None:
+        _push_editor_run_result(editor, result)
+
+    query_op = QueryOp(parent=editor.widget, op=run, success=on_done)
+    query_op.without_collection().run_in_background()
+
+    return (True, None)

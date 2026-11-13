@@ -32,6 +32,12 @@ A Python executor script, for example:
 python3 "$ACE_CODE_FILE"
 ```
 
+While editing an ACE Code note, a **Run Reference Code** button under the code
+fields runs the reference solution through the executor script and shows its
+stdout, stderr and exit status — so a script that doesn't compile or a reference
+whose output isn't what you expected shows up while writing the card rather than
+mid-review.
+
 The code you type during review is never saved to the note — it is ephemeral,
 per-attempt, and lives only long enough to be compared.
 

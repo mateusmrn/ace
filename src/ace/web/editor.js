@@ -2,10 +2,19 @@ class AceExtension {
   static #FIELD_OVERRIDE_STYLE_BLOCK_ID = "ace-code-field-override-css";
   static #FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS =
     "ace-code-field-override-substitute";
+  static #RUN_BUTTON_LABEL = "Run Reference Code";
+
+  /** @type {Map<string, object>} CodeMirror views, keyed by note field name. */
+  #viewsByFieldName = new Map();
+  /** @type {HTMLButtonElement | null} */
+  #runButton = null;
+  /** @type {HTMLElement | null} */
+  #runOutput = null;
 
   /**
    * @typedef {object} FieldOverrideConfig
    *  @property {number} index The index of the position of the field in the form
+   *  @property {string} name The note field's name, e.g. "Reference Code"
    *  @property {string | undefined} language The language of the substitute CodeMirror element
    *  @property {string | undefined} description Text shown below the substitute CodeMirror element
    */
@@ -125,9 +134,9 @@ class AceExtension {
        ;`;
       document.head.append(style);
 
-      fieldsOverrideConfig.forEach((fieldConfig) => {
+      const mounted = fieldsOverrideConfig.map((fieldConfig) => {
         const selector = `.note-editor .fields > :nth-child(${fieldConfig.index + 1}) .collapsible`;
-        void waitForElement(selector).then((el) => {
+        return waitForElement(selector).then((el) => {
           const container = document.createElement("div");
           container.className = AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS;
           el.parentElement.append(container);
@@ -186,13 +195,130 @@ class AceExtension {
               });
             },
           );
+
+          this.#viewsByFieldName.set(fieldConfig.name, view);
+          return container;
         });
+      });
+
+      // Mounted last so the panel sits below every code field rather than between
+      // two of them -- the fields resolve in whatever order their elements appear.
+      void Promise.all(mounted).then((containers) => {
+        this.#mountRunner(containers[containers.length - 1]);
       });
     });
   }
 
+  /**
+   * Button that runs the Reference Code through the Executor Script, so a card can be
+   * checked while it is being written rather than at review time.
+   * @param {HTMLElement} lastFieldContainer
+   */
+  #mountRunner(lastFieldContainer) {
+    const container = document.createElement("div");
+    // Same class the field substitutes use, so onCodeNoteTypeUnload() sweeps it up.
+    container.className = `${AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS} ace-code-runner`;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ace-run-button";
+    button.textContent = AceExtension.#RUN_BUTTON_LABEL;
+    container.append(button);
+
+    const output = document.createElement("div");
+    output.className = "ace-run-output";
+    output.hidden = true;
+    container.append(output);
+
+    button.addEventListener("click", () => {
+      const referenceCode = this.#docOf("Reference Code");
+      const executorScript = this.#docOf("Executor Script");
+
+      button.disabled = true;
+      button.textContent = "Running...";
+      output.hidden = false;
+      output.replaceChildren(
+        AceExtension.#textNode("p", "Running...", "ace-run-status"),
+      );
+
+      pycmd(
+        `ace_run_reference:${JSON.stringify({ referenceCode, executorScript })}`,
+      );
+    });
+
+    this.#runButton = button;
+    this.#runOutput = output;
+    lastFieldContainer.parentElement.append(container);
+  }
+
+  #docOf(fieldName) {
+    const view = this.#viewsByFieldName.get(fieldName);
+    return view ? view.state.doc.toString() : "";
+  }
+
+  /**
+   * Called by Python once the reference run finishes.
+   * @param {{status: "completed", exitCode: number, stdout: string, stderr: string}
+   *   | {status: "error", message: string}} result
+   */
+  onReferenceRunResult(result) {
+    const button = this.#runButton;
+    const output = this.#runOutput;
+    if (!output) {
+      return; // the note type changed while the run was in flight
+    }
+
+    if (button) {
+      button.disabled = false;
+      button.textContent = AceExtension.#RUN_BUTTON_LABEL;
+    }
+
+    output.hidden = false;
+    output.replaceChildren();
+
+    if (result.status === "error") {
+      output.append(
+        AceExtension.#textNode("p", result.message, "ace-run-status ace-run-bad"),
+      );
+      return;
+    }
+
+    const ok = result.exitCode === 0;
+    output.append(
+      AceExtension.#textNode(
+        "p",
+        ok ? "Ran successfully." : `Exited with status ${result.exitCode}.`,
+        `ace-run-status ${ok ? "ace-run-good" : "ace-run-bad"}`,
+      ),
+    );
+
+    if (result.stdout) {
+      output.append(AceExtension.#textNode("p", "stdout", "ace-run-label"));
+      output.append(AceExtension.#textNode("pre", result.stdout));
+    }
+    if (result.stderr) {
+      output.append(AceExtension.#textNode("p", "stderr", "ace-run-label"));
+      output.append(AceExtension.#textNode("pre", result.stderr));
+    }
+    if (!result.stdout && !result.stderr) {
+      output.append(AceExtension.#textNode("p", "(no output)", "ace-run-label"));
+    }
+  }
+
+  static #textNode(tagName, text, className) {
+    const el = document.createElement(tagName);
+    el.textContent = text;
+    if (className) {
+      el.className = className;
+    }
+    return el;
+  }
+
   onCodeNoteTypeUnload() {
     window.__ACE_FIELDS_MOUNTED__ = false;
+    this.#viewsByFieldName.clear();
+    this.#runButton = null;
+    this.#runOutput = null;
 
     const styleBlock = document.getElementById(
       AceExtension.#FIELD_OVERRIDE_STYLE_BLOCK_ID,
