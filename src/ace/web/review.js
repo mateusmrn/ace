@@ -36,6 +36,10 @@ class AceReviewExtension {
       extensions: [
         window.CodeMirror.basicSetup,
         window.CodeMirror.darcula,
+        // basicSetup deliberately leaves Tab unbound so keyboard users aren't
+        // trapped in the editor. Code answers need real indentation though, so
+        // bind it here -- Escape first, then Tab, still releases focus.
+        window.CodeMirror.keymap.of([window.CodeMirror.indentWithTab]),
         window.CodeMirror.EditorView.updateListener.of((viewUpdate) => {
           if (viewUpdate.docChanged) {
             const inputCode = viewUpdate.state.doc.toString();
