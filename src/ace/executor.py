@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,13 +27,28 @@ class ErrorResult(TypedDict):
 ExecutionResult = SuccessResult | FailureResult | ErrorResult
 
 
+_ACE_ENV_VARS = ("ACE_CODE_FILE", "ACE_REFERENCE_CODE_FILE", "ACE_INPUT_CODE_FILE")
+
+
 def _run_executor_script(
     executor_script_path: Path, cwd: Path, extra_env: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
+    # Inherit Anki's environment rather than replacing it: handing subprocess an env=
+    # of just the ACE_* variables leaves the script with no PATH, so bash falls back to
+    # a built-in default of /usr/local/sbin:/usr/local/bin:/usr/bin and every
+    # interpreter installed by a version manager (mise, pyenv, nvm, asdf, conda) or
+    # into ~/.local/bin becomes invisible -- or worse, silently resolves to a different
+    # system-wide version than the one the card author tested against.
+    #
+    # Ambient ACE_* variables are dropped first so that "only set while running the
+    # reference/input code" stays true even if Anki itself was launched with them set.
+    env = {name: value for name, value in os.environ.items() if name not in _ACE_ENV_VARS}
+    env.update(extra_env)
+
     return subprocess.run(
         ["bash", str(executor_script_path)],
         cwd=cwd,
-        env=extra_env,
+        env=env,
         capture_output=True,
         text=True,
         timeout=RUN_TIMEOUT_SECONDS,
@@ -45,6 +61,16 @@ def compare_reference_and_input_code(
     """Run `executor_script` (bash) once against the reference code and once against
     the user's input code, each in its own injected $ACE_CODE_FILE, and compare stdout.
     """
+    # Without this, both runs produce no output at all, those outputs compare equal,
+    # and the card reports success no matter what was typed -- which is the state every
+    # note is in until its Executor Script has been filled in.
+    if not executor_script.strip():
+        return {
+            "status": "error",
+            "message": "This note has no Executor Script, so there is nothing to run "
+            "the code with. Add one that runs $ACE_CODE_FILE and prints its output.",
+        }
+
     try:
         with tempfile.TemporaryDirectory(prefix="ace-run-") as tmpdir_name:
             tmpdir = Path(tmpdir_name)

@@ -17,10 +17,14 @@ ACE registers an **"ACE Code"** note type with three fields:
 
 The executor script is run twice — once with `$ACE_CODE_FILE` pointing at the
 reference code, once pointing at the code you typed — and the two stdouts are
-compared. Both runs happen in the same throwaway temp directory with a 5 second
-timeout. Alongside `$ACE_CODE_FILE`, the reference run also gets
+compared. Alongside `$ACE_CODE_FILE`, the reference run also gets
 `$ACE_REFERENCE_CODE_FILE` and the submitted run `$ACE_INPUT_CODE_FILE`, so a
 script can tell the two apart when it needs to.
+
+Both runs happen in the same throwaway temp directory, with a 5 second timeout,
+and inherit Anki's environment — so a script can reach interpreters a version
+manager put on `PATH` rather than only those under `/usr/bin`. A note whose
+Executor Script is empty reports an error rather than silently passing.
 
 A Python executor script, for example:
 
