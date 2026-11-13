@@ -43,7 +43,7 @@ _AFMT = f"""
 
 {{{{Problem Statement}}}}
 <hr id=answer>
-{{{{Reference Code}}}}
+<pre class="ace-reference-code">{{{{Reference Code}}}}</pre>
 
 <div id="ace-review-spinner">
   <div class="ace-spinner"></div>
@@ -118,12 +118,25 @@ _CSS = """
 #ace-review-result {
     margin: 1em auto;
     max-width: 40em;
-    text-align: left;
+    text-align: center;
 }
 
 .ace-result-success { color: #15803d; }
 .ace-result-failure { color: #b45309; }
 .ace-result-error { color: #b91c1c; }
+
+.ace-reference-code {
+    margin: 1em auto;
+    max-width: 40em;
+    padding: 0.5em;
+    font-family: monospace;
+    font-size: 0.8em;
+    text-align: left;
+    white-space: pre-wrap;
+    background: #f5f5f5;
+    border: 1px solid #c4c4c4;
+    border-radius: 3px;
+}
 
 #ace-review-result pre {
     text-align: left;
