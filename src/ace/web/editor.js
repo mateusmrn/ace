@@ -158,7 +158,7 @@ class AceExtension {
               if (viewUpdate.docChanged) {
                 const newValue = viewUpdate.state.doc.toString();
                 editor.fields[fieldConfig.index].editingArea.content.set(
-                  newValue,
+                  AceExtension.#escapeHtml(newValue),
                 );
               }
             }),
@@ -186,12 +186,13 @@ class AceExtension {
 
           editor.fields[fieldConfig.index].editingArea.content.subscribe(
             (value) => {
+              const newValue = AceExtension.#unescapeHtml(value);
               const currentDoc = view.state.doc.toString();
-              if (value === currentDoc) {
+              if (newValue === currentDoc) {
                 return;
               }
               view.dispatch({
-                changes: { from: 0, to: currentDoc.length, insert: value },
+                changes: { from: 0, to: currentDoc.length, insert: newValue },
               });
             },
           );
@@ -312,6 +313,23 @@ class AceExtension {
       el.className = className;
     }
     return el;
+  }
+
+  // Anki field content is HTML, but CodeMirror's doc is the raw source text, so
+  // every value crossing that boundary needs to be escaped going in and decoded
+  // coming out -- otherwise a bare "<" gets parsed as the start of a tag by the
+  // (hidden) rich-text field underneath, which is what corrupts the doc as you type.
+  static #escapeHtml(text) {
+    return text
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  static #unescapeHtml(html) {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = html;
+    return textarea.value;
   }
 
   onCodeNoteTypeUnload() {

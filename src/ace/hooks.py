@@ -1,3 +1,4 @@
+import html
 import json
 from typing import Any, NamedTuple, cast
 
@@ -373,8 +374,11 @@ def run_code_comparison_on_show_answer(card: Card) -> None:
     reviewer = mw.reviewer
     try:
         note = card.note()
-        reference_code = note["Reference Code"]
-        executor_script = note["Executor Script"]
+        # The editor stores these fields HTML-escaped, same as any other Anki field
+        # (so the card template can drop them straight into a <pre> block) -- decode
+        # back to the literal source before handing it to the executor script.
+        reference_code = html.unescape(note["Reference Code"])
+        executor_script = html.unescape(note["Executor Script"])
     except Exception as error:
         logger.exception("Failed to read ACE Code fields for comparison")
         _push_review_result(reviewer, {"status": "error", "message": str(error)})

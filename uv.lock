@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "ace"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 
 [package.dev-dependencies]
@@ -811,6 +811,12 @@ name = "pyqt6-webengine-qt6"
 version = "6.140.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/b0/e9b2557b4aab4b60f435e549123c7fab7de52a2b35d8c60936a42c069980/pyqt6_webengine_qt6-6.140.0-1-py3-none-macosx_10_14_x86_64.whl", hash = "sha256:1771f0699ff968e08ab1962252468c0b921c94cab56ecda6d7e8c4cb6b0eda41", size = 135541011, upload-time = "2026-11-13T15:01:23.131Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/ff/66bcd6fb5a045430bb524dcd9abd157068134e287a257447e4c687916b5d/pyqt6_webengine_qt6-6.140.0-1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:4a7ca830da1458427289bc988e53c6669b18011556f37ea17bec24c6fbc52f90", size = 115268572, upload-time = "2026-11-13T15:03:14.824Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/c0/249414adb1d76d470c8759d9ca362f49fd96d434f5635340b08bbea18f72/pyqt6_webengine_qt6-6.140.0-1-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:ee0f4e285ea5e0e973fb75b41c76a26ed3c7c19911eea7d1d42db6743ca10dc7", size = 116684660, upload-time = "2026-11-13T15:05:24.902Z" },
+    { url = "https://files.pythonhosted.org/packages/be/32/ba8775028b310210663666f4ea84b6f46e6beef776c13d1c0faf703967a9/pyqt6_webengine_qt6-6.140.0-1-py3-none-manylinux_2_39_aarch64.whl", hash = "sha256:b9a1dc319066a3812f8408d2bbf4cdcaa8b2dbd4e9ebe5764608c2b0d9b964ce", size = 113987217, upload-time = "2026-11-13T15:07:52.245Z" },
+    { url = "https://files.pythonhosted.org/packages/58/4d/0d3e7161191543709c4f43dfba31df109d179ddd03170d4bd45ad733eab1/pyqt6_webengine_qt6-6.140.0-1-py3-none-win_amd64.whl", hash = "sha256:d03c1e54d3517a455ad6b10ea1e0fee334015def3e490fc70c355aaa2bbc55e6", size = 132711267, upload-time = "2026-11-13T15:09:46.94Z" },
+    { url = "https://files.pythonhosted.org/packages/52/cf/92c2b68f19218cd1c03f6d90085fcfac9868f20ce39d0dbb6210097adfea/pyqt6_webengine_qt6-6.140.0-1-py3-none-win_arm64.whl", hash = "sha256:2f854e680661f6c550dd4cabda069957bdc76b392a683a596bfb0d20365f7573", size = 118185225, upload-time = "2026-11-13T15:11:49.308Z" },
     { url = "https://files.pythonhosted.org/packages/ae/18/4292fedcdf89fc90757696382349bf2b5baee3965b468ad33e5b0a9727f8/pyqt6_webengine_qt6-6.140.0-py3-none-macosx_10_14_x86_64.whl", hash = "sha256:9025bb98de6977a88fd02ae7e79745fc52a7de1e7d6719b37fe767adbe5b7923", size = 135146487, upload-time = "2026-11-02T17:02:29.37Z" },
     { url = "https://files.pythonhosted.org/packages/c4/ed/787a089cb3d29a34138c9a79218040387a930b109dac0eb8bd0597bb4c29/pyqt6_webengine_qt6-6.140.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:3421f0b6b74697c05216b773ec52c5128d091016f101c7183eee172bbb275133", size = 114935728, upload-time = "2026-11-02T17:02:36.346Z" },
     { url = "https://files.pythonhosted.org/packages/58/05/573c0285dc3d4d31a43ddba150792d2a595b0610fc654035ad36e41f23d0/pyqt6_webengine_qt6-6.140.0-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:d14a3f57c425bd14ff2435a4e69c02737b26a9a7d5acb227b11babeff97295d6", size = 116403379, upload-time = "2026-11-02T17:02:43.193Z" },
