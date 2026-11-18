@@ -1,6 +1,6 @@
 [project]
 name = "ace"
-version = "0.1.1"
+version = "0.1.2"
 description = "Anki add-on for practicing code: write a solution during review, then diff its output against the reference"
 readme = "README.md"
 authors = [

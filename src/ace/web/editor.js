@@ -10,6 +10,20 @@ class AceExtension {
   #runButton = null;
   /** @type {HTMLElement | null} */
   #runOutput = null;
+  // Bumped on every load/unload. The note editor is a single persistent page, so
+  // switching note types never reloads it -- without this, mount work started for
+  // one note (waiting on fields that hadn't rendered yet) can still resolve after
+  // the note type changes and wire a CodeMirror editor into whatever field happens
+  // to sit at the same position (e.g. Basic's "Back" lines up with Reference
+  // Code's ordinal index), fighting the real field for every keystroke.
+  /** @type {number} */
+  #mountGeneration = 0;
+  /** @type {Array<() => void>} Cancels fields still waiting to render, so
+   *  onCodeNoteTypeUnload() doesn't leave their observers running forever. */
+  #pendingCancels = [];
+  /** @type {Array<() => void>} Unsubscribes + destroys views that did mount, so
+   *  they stop bridging into whatever field reuses their slot afterwards. */
+  #activeTeardowns = [];
 
   /**
    * @typedef {object} FieldOverrideConfig
@@ -109,6 +123,7 @@ class AceExtension {
       return;
     }
     window.__ACE_FIELDS_MOUNTED__ = true;
+    const generation = ++this.#mountGeneration;
 
     /** @type {Promise<NoteEditorAPI>} */
     const noteEditor = new Promise((res) => {
@@ -121,6 +136,10 @@ class AceExtension {
     });
 
     noteEditor.then((editor) => {
+      if (generation !== this.#mountGeneration) {
+        return;
+      }
+
       const fieldsCssSelectors = fieldsOverrideConfig.map(
         (config) =>
           `.note-editor .fields > :nth-child(${config.index + 1}) .collapsible`,
@@ -136,7 +155,13 @@ class AceExtension {
 
       const mounted = fieldsOverrideConfig.map((fieldConfig) => {
         const selector = `.note-editor .fields > :nth-child(${fieldConfig.index + 1}) .collapsible`;
-        return waitForElement(selector).then((el) => {
+        const wait = waitForElement(selector);
+        this.#pendingCancels.push(wait.cancel);
+        return wait.promise.then((el) => {
+          if (generation !== this.#mountGeneration) {
+            return null;
+          }
+
           const container = document.createElement("div");
           container.className = AceExtension.#FIELD_OVERRIDE_SUBSTITUTE_ELEMENT_CLASS;
           el.parentElement.append(container);
@@ -184,18 +209,30 @@ class AceExtension {
             container.append(description);
           }
 
-          editor.fields[fieldConfig.index].editingArea.content.subscribe(
-            (value) => {
-              const newValue = AceExtension.#unescapeHtml(value);
-              const currentDoc = view.state.doc.toString();
-              if (newValue === currentDoc) {
-                return;
-              }
-              view.dispatch({
-                changes: { from: 0, to: currentDoc.length, insert: newValue },
-              });
-            },
-          );
+          const unsubscribe = editor.fields[
+            fieldConfig.index
+          ].editingArea.content.subscribe((value) => {
+            const newValue = AceExtension.#unescapeHtml(value);
+            const currentDoc = view.state.doc.toString();
+            if (newValue === currentDoc) {
+              return;
+            }
+            view.dispatch({
+              changes: { from: 0, to: currentDoc.length, insert: newValue },
+            });
+          });
+
+          // Anki's note editor is a single persistent page -- switching note type
+          // never recreates it, it just rebinds editor.fields to the new note's
+          // fields. Without tearing these down, this subscription and the view's
+          // updateListener above stay live and keep bridging whatever field next
+          // lands at this same ordinal index (e.g. Basic's "Back" field, which sits
+          // at the same position as Reference Code), each keystroke there fighting
+          // the stale CodeMirror doc for control of the field's content.
+          this.#activeTeardowns.push(() => {
+            unsubscribe();
+            view.destroy();
+          });
 
           this.#viewsByFieldName.set(fieldConfig.name, view);
           return container;
@@ -205,6 +242,9 @@ class AceExtension {
       // Mounted last so the panel sits below every code field rather than between
       // two of them -- the fields resolve in whatever order their elements appear.
       void Promise.all(mounted).then((containers) => {
+        if (generation !== this.#mountGeneration) {
+          return;
+        }
         this.#mountRunner(containers[containers.length - 1]);
       });
     });
@@ -334,6 +374,11 @@ class AceExtension {
 
   onCodeNoteTypeUnload() {
     window.__ACE_FIELDS_MOUNTED__ = false;
+    this.#mountGeneration++;
+    this.#pendingCancels.forEach((cancel) => cancel());
+    this.#pendingCancels = [];
+    this.#activeTeardowns.forEach((teardown) => teardown());
+    this.#activeTeardowns = [];
     this.#viewsByFieldName.clear();
     this.#runButton = null;
     this.#runOutput = null;
@@ -352,14 +397,23 @@ class AceExtension {
 
 window.__ACE__ = new AceExtension();
 
+/**
+ * @param {string} selector
+ * @returns {{promise: Promise<Element>, cancel: () => void}} `cancel` disconnects
+ *   the observer if the element never shows up (e.g. the note type changed before
+ *   it rendered) -- without it the observer would sit on document.body forever,
+ *   matching whatever unrelated element next happens to fit the selector.
+ */
 function waitForElement(selector) {
-  return new Promise((resolve) => {
+  let observer = null;
+  const promise = new Promise((resolve) => {
     const element = document.querySelector(selector);
     if (element) {
-      return resolve(element);
+      resolve(element);
+      return;
     }
 
-    const observer = new MutationObserver((_, obs) => {
+    observer = new MutationObserver((_, obs) => {
       const targetElement = document.querySelector(selector);
       if (targetElement) {
         obs.disconnect();
@@ -372,4 +426,6 @@ function waitForElement(selector) {
       subtree: true,
     });
   });
+
+  return { promise, cancel: () => observer?.disconnect() };
 }
