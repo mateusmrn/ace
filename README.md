@@ -151,3 +151,21 @@ That rebuilds the CodeMirror bundle, then zips the *contents* of `src/ace/` —
 manifest at the archive root, no enclosing directory, no `__pycache__` — into
 `dist/<package>-<version>.ankiaddon`, versioned from `pyproject.toml`. Pass
 `--skip-build` to archive the bundle as it already stands.
+
+## Releasing
+
+`main` is kept releasable; changes land through a PR, gated by the `CI` workflow
+(ruff, the CodeMirror build, a packaging smoke test). To cut a release:
+
+1. Bump the version in `pyproject.toml` and run `uv lock`, as part of the PR for
+   the change (see `CLAUDE.md`).
+2. Once that PR is merged, tag the merge commit and push the tag:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+3. The `Release` workflow checks that the tag matches `pyproject.toml`'s version,
+   builds the `.ankiaddon`, and attaches it to a new GitHub Release.
+4. Upload that file to AnkiWeb yourself. AnkiWeb has no public API for this step —
+   its Terms of Service don't permit third-party/automated access to the upload
+   flow, so this part stays manual.
