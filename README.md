@@ -154,18 +154,22 @@ manifest at the archive root, no enclosing directory, no `__pycache__` — into
 
 ## Releasing
 
-`main` is kept releasable; changes land through a PR, gated by the `CI` workflow
-(ruff, the CodeMirror build, a packaging smoke test). To cut a release:
+The `CI` workflow (ruff, the CodeMirror build, a packaging smoke test) runs on
+every push to `main`, but pushing directly to `main` is still fine — nothing
+blocks it. The real gate is the `Release` workflow: it only publishes a release
+if its checks pass. To cut a release:
 
-1. Bump the version in `pyproject.toml` and run `uv lock`, as part of the PR for
-   the change (see `CLAUDE.md`).
-2. Once that PR is merged, tag the merge commit and push the tag:
+1. Bump the version in `pyproject.toml` and run `uv lock` (see `CLAUDE.md`), and
+   push that to `main`.
+2. Tag that commit and push the tag:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-3. The `Release` workflow checks that the tag matches `pyproject.toml`'s version,
-   builds the `.ankiaddon`, and attaches it to a new GitHub Release.
+3. The `Release` workflow lints, checks that the tag matches `pyproject.toml`'s
+   version, and builds the `.ankiaddon` — failing any of those skips the last
+   step, so a release is only ever published when all of them pass. On success
+   it attaches the `.ankiaddon` to a new GitHub Release.
 4. Upload that file to AnkiWeb yourself. AnkiWeb has no public API for this step —
    its Terms of Service don't permit third-party/automated access to the upload
    flow, so this part stays manual.
