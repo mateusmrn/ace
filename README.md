@@ -5,6 +5,27 @@ text answer, you write a solution in a real code editor on the front of the card
 when you reveal the answer, ACE runs both your code and the reference solution and
 tells you whether they produced the same output.
 
+## ⚠️ Personal project, use at your own risk
+
+This is a personal add-on I built (with AI assistance) to study for myself. It has
+only been run on my own machine and has not been tested across different OSes,
+Anki versions, or Python environments.
+
+More importantly: **ACE executes the Executor Script and both code fields as
+real shell/subprocess commands on your computer**, with no sandboxing beyond a
+timeout. A note's `Executor Script` and code fields are not inert text — reviewing
+or editing a card runs them. That means:
+
+- Any note that reaches your collection (shared decks, imported `.apkg` files,
+  AnkiWeb downloads, synced notes from someone else) can run arbitrary code on
+  your machine the moment you view or edit it in ACE's note editor, or review it.
+- There is no permission prompt, allowlist, or sanitization — if you wouldn't run
+  a shell script from a source, don't import an ACE note from that source either.
+- Only use ACE with decks you wrote yourself or fully trust.
+
+Treat this repo as source you can read, fork, and adapt — not as a vetted,
+security-reviewed tool.
+
 ## How it works
 
 ACE registers an **"ACE Code"** note type with three fields:
